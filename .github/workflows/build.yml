@@ -1,0 +1,54 @@
+name: WinHub Ultimate Pro Max Build
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build IPA (Node 24)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Create Project Files
+        run: |
+          mkdir -p WinHub
+          # Create a dummy LaunchScreen to prevent build error
+          echo 'import UIKit\nclass LaunchScreen: UIViewController {}' > WinHub/LaunchScreen.swift
+          xcodegen generate
+
+      - name: Build Archive (No Signing)
+        run: |
+          xcodebuild archive \
+            -project WinHub.xcodeproj \
+            -scheme WinHub \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/WinHub.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Create Sideloadable IPA
+        run: |
+          mkdir -p build/Payload
+          cp -r build/WinHub.xcarchive/Products/Applications/*.app build/Payload/
+          cd build
+          zip -qr WinHub_15ProMax.ipa Payload
+
+      - name: Upload Result
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinHub-IPA
+          path: build/WinHub_15ProMax.ipa
